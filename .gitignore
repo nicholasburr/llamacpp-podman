@@ -1,0 +1,7 @@
+# local / editor / build scratch
+*.bak
+*.bak-*
+*.orig
+*.swp
+*~
+.DS_Store
