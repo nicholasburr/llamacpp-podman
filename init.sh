@@ -166,9 +166,24 @@ link "$SHARED/Containerfile" Containerfile
 printf '.git\nshared\n*.tpl\n*.bak\n*.bak-*\n' > .podmanignore
 echo "  wrote .podmanignore"
 
+# Commit the generated project. The project is expected to already be `git init`-ed
+# with the shared submodule added (see the README), so `git add -A` also records
+# the new .gitmodules + submodule gitlink. Skipped (with a note) when we're not in
+# a git work tree or there's nothing to commit.
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  if git add -A && git commit -m "bootstrap llamacpp-$NAME"; then
+    echo "  -> committed the generated project"
+  else
+    echo "  note: no commit made (nothing to commit, or git user.name/user.email not set)." >&2
+    echo "        when ready: git add -A && git commit -m 'bootstrap llamacpp-$NAME'" >&2
+  fi
+else
+  echo "  note: not inside a git work tree, so no commit was made." >&2
+  echo "        when ready: git add -A && git commit -m 'bootstrap llamacpp-$NAME'" >&2
+fi
+
 echo
 echo "==> done. Next steps:"
-echo "    git add -A && git commit -m 'bootstrap llamacpp-$NAME'"
 echo "    make deploy          # build the image + start the service"
 echo "    make status          # check it came up"
 echo "    (PROJECT locks MODEL=$MODEL for this project — a new model needs a NEW project)"

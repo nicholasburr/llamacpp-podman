@@ -32,12 +32,11 @@ ROCm / Fedora) are managed here, in the submodule.
 mkdir my-model && cd my-model && git init
 # 2. add this repo as a submodule (it "unpacks" on checkout)
 git submodule add <this-repo-url> shared
-# 3. one-time: template TAGS, compose.yaml, config/ and README for your model
+# 3. one-time: template TAGS, compose.yaml, config/ and README for your model;
+#    init.sh also commits the generated project + submodule registration
 bash shared/init.sh MODEL=unsloth/Your-Model-GGUF:QUANT
 #    optional overrides: NAME=.. ALIAS=.. HOME_DIR=/home/you DOC_URL=..
-# 4. commit the generated project
-git add -A && git commit -m 'bootstrap'
-# 5. deploy
+# 4. deploy
 make deploy
 ```
 
