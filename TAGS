@@ -17,11 +17,11 @@
 #
 # `make sync` tags HEAD with the image tag so consumers can pin the
 # submodule to a tagged build. Consumer projects keep their OWN TAGS
-# (per-project IMAGE_NAME, MODEL, versions) — this file only describes
-# the shared image built by the Containerfile, which runs no model.
+# (per-project IMAGE_NAME + versions); their served model lives in a
+# separate PROJECT file. This file only describes the shared image built
+# by the Containerfile, which runs no model.
 
 IMAGE_NAME=localhost/llamacpp
 LLAMA_TAG=v0.6.0
 ROCM_VERSION=10.1.0
 FEDORA_VERSION=44
-MODEL=''

@@ -12,9 +12,10 @@
 #     - consumer projects: everything above, plus `make deploy`, which
 #       deploys the model container (quadlet units + user systemd).
 #
-#  Per-project values (IMAGE_NAME, MODEL, versions) are read from the TAGS
-#  file in the CURRENT repo — consumers keep their own TAGS; this repo's
-#  TAGS describes the shared image. See TAGS for the image-tag scheme.
+#  Per-project values are read from the CURRENT repo: versions (IMAGE_NAME,
+#  LLAMA_TAG, ROCM_VERSION, FEDORA_VERSION) from TAGS, and MODEL from the
+#  immutable PROJECT file (consumers only — absent in this repo). See TAGS
+#  for the image-tag scheme and PROJECT for the model.
 #
 #  End-user targets (consumers):
 #      make deploy     install quadlet units and start the service (user systemd)
@@ -46,13 +47,17 @@ SHARED ?= shared
 # ---------------------------------------------------------------------------
 
 TAGS := TAGS
-tagvar = $(strip $(shell awk -F= -v k="$(1)" '$$1==k{print $$2; exit}' $(TAGS) 2>/dev/null))
+PROJECT := PROJECT
+tagvar = $(strip $(shell awk -F= -v k="$(1)" '$$1==k{print $$2; exit}' $(2) 2>/dev/null))
 
-IMAGE_NAME     := $(call tagvar,IMAGE_NAME)
-LLAMA_TAG      := $(call tagvar,LLAMA_TAG)
-ROCM_VERSION   := $(call tagvar,ROCM_VERSION)
-FEDORA_VERSION := $(call tagvar,FEDORA_VERSION)
-MODEL          := $(call tagvar,MODEL)
+# Version keys come from TAGS (the synced, submodule-managed version source).
+IMAGE_NAME     := $(call tagvar,IMAGE_NAME,$(TAGS))
+LLAMA_TAG      := $(call tagvar,LLAMA_TAG,$(TAGS))
+ROCM_VERSION   := $(call tagvar,ROCM_VERSION,$(TAGS))
+FEDORA_VERSION := $(call tagvar,FEDORA_VERSION,$(TAGS))
+# MODEL lives in PROJECT — the immutable, set-once model for this project.
+# (Absent in the shared repo itself, which runs no model.)
+MODEL          := $(call tagvar,MODEL,$(PROJECT))
 
 IMAGE_TAG    := $(LLAMA_TAG)-rocm-$(ROCM_VERSION)
 TAGGED_IMAGE := $(IMAGE_NAME):$(IMAGE_TAG)
@@ -196,7 +201,7 @@ sync: ## Rewrite image tag, build args and model ref; tag HEAD with the image ta
 				echo "model ref already in sync"; \
 			fi; \
 		else \
-			echo "no model to sync (MODEL not set in TAGS / no compose.yaml)"; \
+			echo "no model to sync (MODEL not set in PROJECT / no compose.yaml)"; \
 		fi; \
 	else \
 		echo "no deploy files in this repo — skipping file sync"; \
@@ -239,11 +244,12 @@ parametric-build: ## Pin a new llama.cpp tag in TAGS: TAG=<v-or-b-tag> [ROCM=x.y
 #  Consumer tooling — bootstrap a new project + sync versions from the submodule
 #  ----------------------------------------------------------------------------
 #  `make -f shared/Makefile init MODEL=<hf-repo:quant>` renders templates/ into a
-#  fresh project (TAGS, compose.yaml, the quadlet units, README.md), symlinks the
-#  shared Makefile + Containerfile, and prints next steps. The served model is a
-#  ONE-TIME input (a project serves exactly one model); version bumps (llama.cpp /
-#  ROCm / Fedora) are managed by the submodule via `make sync-versions`. See the
-#  README section "Using this repo as a submodule".
+#  fresh project (PROJECT, TAGS, compose.yaml, the quadlet units, README.md),
+#  symlinks the shared Makefile + Containerfile, and prints next steps. The
+#  served model is written to PROJECT exactly once (a project serves exactly one
+#  model — re-running init with a different MODEL is refused); version bumps
+#  (llama.cpp / ROCm / Fedora) are managed by the submodule via `make sync-versions`.
+#  See the README section "Using this repo as a submodule".
 # ============================================================================
 
 init: ## Bootstrap a NEW project from this shared submodule (one-time). Usage: make -f shared/Makefile init MODEL=<hf-repo:quant> [NAME=..] [ALIAS=..] [HOME_DIR=..] [DOC_URL=..] [FORCE=1]
@@ -252,6 +258,15 @@ init: ## Bootstrap a NEW project from this shared submodule (one-time). Usage: m
 	TPL="$$SH/templates"; \
 	MODEL="$(MODEL)"; NAME="$(NAME)"; ALIAS="$(ALIAS)"; HOME_DIR="$(HOME_DIR)"; DOC_URL="$(DOC_URL)"; FORCE="$(FORCE)"; \
 	if [ -z "$$MODEL" ]; then echo "ERROR: MODEL required, e.g. make -f shared/Makefile init MODEL=unsloth/Your-Model-GGUF:Q4_K_XL" >&2; exit 2; fi; \
+	if [ -f "PROJECT" ]; then\
+	  locked=$$(awk -F= -v k="MODEL" '$$1==k{print $$2; exit}' PROJECT 2>/dev/null);\
+	  if [ -n "$$locked" ] && [ "$$locked" != "$$MODEL" ]; then\
+	    echo "ERROR: this project is locked to MODEL=$$locked (see PROJECT)." >&2;\
+	    echo "       MODEL is immutable — a project serves exactly one model." >&2;\
+	    echo "       To serve '$$MODEL', initialize a brand-new project." >&2;\
+	    exit 3;\
+	  fi;\
+	fi;\
 	if [ ! -f "$$SH/TAGS" ]; then echo "ERROR: $$SH/TAGS not found — check out the shared submodule first: git submodule update --init" >&2; exit 1; fi; \
 	if [ ! -d "$$TPL" ]; then echo "ERROR: $$TPL not found — is this the llamacpp-shared submodule?" >&2; exit 1; fi; \
 	tagvar() { awk -F= -v k="$$1" '$$1==k{print $$2; exit}' "$$SH/TAGS" 2>/dev/null; }; \
@@ -282,7 +297,7 @@ init: ## Bootstrap a NEW project from this shared submodule (one-time). Usage: m
 	echo "    IMAGE   = $$TAGGED_IMAGE"; \
 	echo "    versions from $$SH/TAGS: LLAMA_TAG=$$LLAMA_TAG ROCM_VERSION=$$ROCM_VERSION FEDORA_VERSION=$$FEDORA_VERSION"; \
 	existing=""; \
-	for f in TAGS compose.yaml README.md "config/containers/systemd/$$NAME/$$NAME.build" "config/containers/systemd/$$NAME/$$NAME.container" Makefile Containerfile; do \
+	for f in TAGS PROJECT compose.yaml README.md "config/containers/systemd/$$NAME/$$NAME.build" "config/containers/systemd/$$NAME/$$NAME.container" Makefile Containerfile; do \
 	  if [ -e "$$f" ] || [ -L "$$f" ]; then existing="$$existing $$f"; fi; \
 	done; \
 	if [ -n "$$existing" ] && [ -z "$$FORCE" ]; then \
@@ -291,9 +306,10 @@ init: ## Bootstrap a NEW project from this shared submodule (one-time). Usage: m
 	  exit 1; \
 	fi; \
 	render() { local tpl="$$1" out="$$2"; mkdir -p "$$(dirname "$$out")"; sed -e "s|@@CONTAINER_NAME@@|$$NAME|g" -e "s|@@MODEL@@|$$MODEL|g" -e "s|@@ALIAS@@|$$ALIAS|g" -e "s|@@IMAGE_NAME@@|$$IMAGE_NAME|g" -e "s|@@IMAGE_TAG@@|$$IMAGE_TAG|g" -e "s|@@LLAMA_TAG@@|$$LLAMA_TAG|g" -e "s|@@ROCM_VERSION@@|$$ROCM_VERSION|g" -e "s|@@FEDORA_VERSION@@|$$FEDORA_VERSION|g" -e "s|@@HOME_DIR@@|$$HOME_DIR|g" -e "s|@@REPO_PATH@@|$$REPO_PATH|g" -e "s|@@DOC_URL@@|$$DOC_URL|g" "$$tpl" > "$$out"; echo "  wrote $$out"; }; \
-	rm -f TAGS compose.yaml README.md; \
+	rm -f TAGS PROJECT compose.yaml README.md; \
 	rm -f "config/containers/systemd/$$NAME/$$NAME.build" "config/containers/systemd/$$NAME/$$NAME.container"; \
 	render "$$TPL/TAGS.tpl" TAGS; \
+	render "$$TPL/PROJECT.tpl" PROJECT; \
 	render "$$TPL/compose.yaml.tpl" compose.yaml; \
 	render "$$TPL/quadlet.build.tpl" "config/containers/systemd/$$NAME/$$NAME.build"; \
 	render "$$TPL/quadlet.container.tpl" "config/containers/systemd/$$NAME/$$NAME.container"; \
@@ -308,6 +324,7 @@ init: ## Bootstrap a NEW project from this shared submodule (one-time). Usage: m
 	echo "    git add -A && git commit -m 'bootstrap llamacpp-$$NAME'"; \
 	echo "    make deploy          # build the image + start the service"; \
 	echo "    make status          # check it came up"; \
+	echo "    (PROJECT locks MODEL=$$MODEL for this project — a new model needs a NEW project)"; \
 	echo; \
 	echo "To update llama.cpp / ROCm / Fedora later (managed by the submodule):"; \
 	echo "    git submodule update --remote shared && make sync-versions && make sync && make build && make deploy"

@@ -21,9 +21,11 @@ repo as a submodule and let `make init` generate their own model-specific files.
 ## Using this repo as a submodule (deploy a model)
 
 Add it as a git submodule to a new per-model project, and `make init` templates the
-model-specific files in place. A project serves exactly **one** model (a one-time
-input); all version bumps (llama.cpp / ROCm / Fedora) are managed here, in the
-submodule.
+model-specific files in place. A project serves exactly **one** model — that model
+is written to a `PROJECT` file at `init` and is **immutable** for the life of the
+project (the container name, image name and alias are all derived from it). To serve
+a different model, initialize a brand-new project. All version bumps (llama.cpp /
+ROCm / Fedora) are managed here, in the submodule.
 
 ```sh
 # 1. new project
@@ -41,10 +43,13 @@ make deploy
 
 `init` derives the container name from the model (e.g. `unsloth/Foo-Bar-GGUF:Q4`
 → `foo-bar`), pulls the current `LLAMA_TAG` / `ROCM_VERSION` / `FEDORA_VERSION`
-from this repo's `TAGS`, writes `TAGS`, `compose.yaml`,
+from this repo's `TAGS`, writes `PROJECT` (the immutable model), `TAGS`
+(per-project versions), `compose.yaml`,
 `config/containers/systemd/<name>/*.{build,container}` and `README.md` into the
 project root, and symlinks `Makefile` + `Containerfile` from `shared/`. From then
-on the plain `make <target>` works, since `Makefile` is now symlinked.
+on the plain `make <target>` works, since `Makefile` is now symlinked. The `PROJECT`
+file is set once and never rewritten — re-running `make init` with a different
+`MODEL` is refused.
 
 ### Updating versions later (managed by the submodule)
 
@@ -54,7 +59,8 @@ make sync-versions                     # copy the three version keys into TAGS
 make sync && make build && make deploy # rebuild + redeploy with the new image
 ```
 
-`MODEL` is never version-managed — it is the project's one-time input.
+`MODEL` lives in the project's `PROJECT` file — set once at `init`, never
+version-managed, and immutable (a new model means a new project).
 
 ## The Makefile
 
