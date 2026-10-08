@@ -10,19 +10,19 @@ consumer, so the same `Makefile` and `Containerfile` work everywhere:
 | `Containerfile` | podman build recipe (builder + runtime stages) for the llama.cpp ROCm image |
 | `Makefile` | shared build system — build/sync everywhere; `deploy`/`logs`/`stop` in consumers |
 | `TAGS` | version source of truth (`LLAMA_TAG` / `ROCM_VERSION` / `FEDORA_VERSION`) |
-| `templates/` | `@@PLACEHOLDER@@` files that `make init` renders into a new project |
+| `templates/` | `@@PLACEHOLDER@@` files that `init.sh` renders into a new project |
 
 The GPU target is hardcoded to **`gfx1151`** (AMD Strix Halo / Ryzen AI Max+ 395)
 and ROCm is installed with **pip wheels** (no repo.radeon.com RPMs). This repo
 builds the image but runs **no model** — it has no `compose.yaml` or quadlet units,
 so `deploy`/`logs`/`stop` report "nothing to do" here. Consumer projects add this
-repo as a submodule and let `make init` generate their own model-specific files.
+repo as a submodule and let `init.sh` generate their own model-specific files.
 
 ## Using this repo as a submodule (deploy a model)
 
-Add it as a git submodule to a new per-model project, and `make init` templates the
+Add it as a git submodule to a new per-model project, and `init.sh` templates the
 model-specific files in place. A project serves exactly **one** model — that model
-is written to a `PROJECT` file at `init` and is **immutable** for the life of the
+is written to a `PROJECT` file at `init.sh` and is **immutable** for the life of the
 project (the container name, image name and alias are all derived from it). To serve
 a different model, initialize a brand-new project. All version bumps (llama.cpp /
 ROCm / Fedora) are managed here, in the submodule.
@@ -33,7 +33,7 @@ mkdir my-model && cd my-model && git init
 # 2. add this repo as a submodule (it "unpacks" on checkout)
 git submodule add <this-repo-url> shared
 # 3. one-time: template TAGS, compose.yaml, config/ and README for your model
-make -f shared/Makefile init MODEL=unsloth/Your-Model-GGUF:QUANT
+bash shared/init.sh MODEL=unsloth/Your-Model-GGUF:QUANT
 #    optional overrides: NAME=.. ALIAS=.. HOME_DIR=/home/you DOC_URL=..
 # 4. commit the generated project
 git add -A && git commit -m 'bootstrap'
@@ -41,14 +41,14 @@ git add -A && git commit -m 'bootstrap'
 make deploy
 ```
 
-`init` derives the container name from the model (e.g. `unsloth/Foo-Bar-GGUF:Q4`
+`init.sh` derives the container name from the model (e.g. `unsloth/Foo-Bar-GGUF:Q4`
 → `foo-bar`), pulls the current `LLAMA_TAG` / `ROCM_VERSION` / `FEDORA_VERSION`
 from this repo's `TAGS`, writes `PROJECT` (the immutable model), `TAGS`
 (per-project versions), `compose.yaml`,
 `config/containers/systemd/<name>/*.{build,container}` and `README.md` into the
 project root, and symlinks `Makefile` + `Containerfile` from `shared/`. From then
 on the plain `make <target>` works, since `Makefile` is now symlinked. The `PROJECT`
-file is set once and never rewritten — re-running `make init` with a different
+file is set once and never rewritten — re-running `init.sh` with a different
 `MODEL` is refused.
 
 ### Updating versions later (managed by the submodule)
@@ -59,7 +59,7 @@ make sync-versions                     # copy the three version keys into TAGS
 make sync && make build && make deploy # rebuild + redeploy with the new image
 ```
 
-`MODEL` lives in the project's `PROJECT` file — set once at `init`, never
+`MODEL` lives in the project's `PROJECT` file — set once at `init.sh`, never
 version-managed, and immutable (a new model means a new project).
 
 ## The Makefile
@@ -91,11 +91,10 @@ Run `make help` for the full, current list. In short:
 | `make parametric-build TAG=<v-or-b-tag> [ROCM=x.y.z] [FEDORA=n]` | point `TAGS` at a llama.cpp release (`vX.Y.Z`) or nightly (`bXXXXX`) tag |
 | `make sync` | rewrite the image ref / build args / model ref in all file-based methods; tag HEAD with the image tag |
 
-**Consumer tooling** (bootstrap + version sync):
+**Version sync** (consumer):
 
 | Command | Effect |
 |---|---|
-| `make init MODEL=<hf-repo:quant> [NAME=] [ALIAS=] [HOME_DIR=] [DOC_URL=] [FORCE=1]` | bootstrap a NEW project from this submodule (one-time) |
 | `make sync-versions` | pull `LLAMA_TAG`/`ROCM_VERSION`/`FEDORA_VERSION` from the submodule into `TAGS` |
 
 In this repo there is no model and no quadlet units, so `deploy`/`logs`/`stop`

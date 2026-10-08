@@ -4,8 +4,8 @@ Podman deployment of **@@MODEL@@** (served as `@@ALIAS@@`) on
 [llama.cpp](https://github.com/ggml-org/llama.cpp) with **ROCm @@ROCM_VERSION@@**
 on Strix Halo (AMD Ryzen AI Max+ 395, 32GB UMA), built on Fedora @@FEDORA_VERSION@@.
 
-This project was bootstrapped from the **llamacpp-shared** git submodule
-(`shared/`) with `make init MODEL=@@MODEL@@`. Everything model-specific
+This project was bootstrapped from the **shared** git submodule
+(`shared/`) with `bash shared/init.sh MODEL=@@MODEL@@`. Everything model-specific
 (`TAGS`, `compose.yaml`, `config/containers/systemd/@@CONTAINER_NAME@@/*`, this
 README) is templated in place; the shared build machinery (`Makefile`,
 `Containerfile`) is symlinked from the submodule.
@@ -85,7 +85,7 @@ Hugging Face secret (`huggingface-token`), cached in `@@HOME_DIR@@/.cache/huggin
   untrusted environments").
 - **`ipc: host`** is required so the large model load does not exhaust the
   default ~64MB `/dev/shm`; the `podman compose` path needs the `podman-compose`
-  IPC patch (see the llamacpp-shared family notes) — plain `podman run --ipc=host`
+  IPC patch (see the llamacpp-podman family notes) — plain `podman run --ipc=host`
   works without it.
 - **Shared iGPU:** other GPU workloads contend for the iGPU and drop throughput
   while they are mid-generation.

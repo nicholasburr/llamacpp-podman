@@ -5,7 +5,7 @@
 #  via git submodule (symlinked into every consumer project). The same
 #  targets work everywhere:
 #
-#     - llamacpp-shared (this repo): `make build` builds the image from the
+#     - llamacpp-podman (this repo): `make build` builds the image from the
 #       Containerfile and `make sync` tags HEAD with the image tag, so
 #       consumers can pin the submodule to a tagged build. There is no
 #       model container here, so `deploy`/`logs`/`stop` report that.
@@ -35,7 +35,7 @@ MAKEFLAGS += --no-builtin-rules
 .DEFAULT_GOAL := help
 
 # The shared submodule lives at ./shared in consumer projects (it is this repo
-# when run from the submodule itself). Used by `init` and `sync-versions`.
+# when run from the submodule itself). Used by `sync-versions` (and `init.sh`).
 SHARED ?= shared
 
 # ---------------------------------------------------------------------------
@@ -80,7 +80,7 @@ HAS_SERVICE := $(shell systemctl --user cat "$(CONTAINER_NAME).service" >/dev/nu
 
 LLAMA_REPO := https://github.com/ggml-org/llama.cpp.git
 
-.PHONY: help init sync-versions deploy status logs stop clean sync build parametric-build
+.PHONY: help sync-versions deploy status logs stop clean sync build parametric-build
 
 help: ## Print this list.
 	@echo "image:     $(TAGGED_IMAGE)"
@@ -241,93 +241,17 @@ parametric-build: ## Pin a new llama.cpp tag in TAGS: TAG=<v-or-b-tag> [ROCM=x.y
 	  echo "next: make build && make deploy"; }
 
 # ============================================================================
-#  Consumer tooling — bootstrap a new project + sync versions from the submodule
+#  Consumer tooling — sync versions from the submodule
 #  ----------------------------------------------------------------------------
-#  `make -f shared/Makefile init MODEL=<hf-repo:quant>` renders templates/ into a
-#  fresh project (PROJECT, TAGS, compose.yaml, the quadlet units, README.md),
-#  symlinks the shared Makefile + Containerfile, and prints next steps. The
-#  served model is written to PROJECT exactly once (a project serves exactly one
-#  model — re-running init with a different MODEL is refused); version bumps
-#  (llama.cpp / ROCm / Fedora) are managed by the submodule via `make sync-versions`.
-#  See the README section "Using this repo as a submodule".
+#  `make sync-versions` copies the three version keys (LLAMA_TAG / ROCM_VERSION /
+#  FEDORA_VERSION) from the shared submodule's TAGS into this repo's TAGS.
+#
+#  Bootstrapping a NEW project is a one-time step done by the init.sh script
+#  (not a make target): `bash shared/init.sh MODEL=<hf-repo:quant>`. It renders
+#  the templates into the project root, writes the immutable PROJECT file
+#  (MODEL is set once and never changed), symlinks the Makefile + Containerfile,
+#  and prints next steps. See the README section "Using this repo as a submodule".
 # ============================================================================
-
-init: ## Bootstrap a NEW project from this shared submodule (one-time). Usage: make -f shared/Makefile init MODEL=<hf-repo:quant> [NAME=..] [ALIAS=..] [HOME_DIR=..] [DOC_URL=..] [FORCE=1]
-	@set -eu; \
-	SH="$(SHARED)"; \
-	TPL="$$SH/templates"; \
-	MODEL="$(MODEL)"; NAME="$(NAME)"; ALIAS="$(ALIAS)"; HOME_DIR="$(HOME_DIR)"; DOC_URL="$(DOC_URL)"; FORCE="$(FORCE)"; \
-	if [ -z "$$MODEL" ]; then echo "ERROR: MODEL required, e.g. make -f shared/Makefile init MODEL=unsloth/Your-Model-GGUF:Q4_K_XL" >&2; exit 2; fi; \
-	if [ -f "PROJECT" ]; then\
-	  locked=$$(awk -F= -v k="MODEL" '$$1==k{print $$2; exit}' PROJECT 2>/dev/null);\
-	  if [ -n "$$locked" ] && [ "$$locked" != "$$MODEL" ]; then\
-	    echo "ERROR: this project is locked to MODEL=$$locked (see PROJECT)." >&2;\
-	    echo "       MODEL is immutable — a project serves exactly one model." >&2;\
-	    echo "       To serve '$$MODEL', initialize a brand-new project." >&2;\
-	    exit 3;\
-	  fi;\
-	fi;\
-	if [ ! -f "$$SH/TAGS" ]; then echo "ERROR: $$SH/TAGS not found — check out the shared submodule first: git submodule update --init" >&2; exit 1; fi; \
-	if [ ! -d "$$TPL" ]; then echo "ERROR: $$TPL not found — is this the llamacpp-shared submodule?" >&2; exit 1; fi; \
-	tagvar() { awk -F= -v k="$$1" '$$1==k{print $$2; exit}' "$$SH/TAGS" 2>/dev/null; }; \
-	LLAMA_TAG="$$(tagvar LLAMA_TAG)"; \
-	ROCM_VERSION="$$(tagvar ROCM_VERSION)"; \
-	FEDORA_VERSION="$$(tagvar FEDORA_VERSION)"; \
-	for v in LLAMA_TAG ROCM_VERSION FEDORA_VERSION; do \
-	  if [ -z "$${!v}" ]; then echo "ERROR: $$v missing from $$SH/TAGS" >&2; exit 1; fi; \
-	done; \
-	repo="$${MODEL%%:*}"; \
-	repo="$${repo##*/}"; \
-	base="$${repo%-GGUF}"; \
-	base="$${base%-gguf}"; \
-	NAME="$$(printf '%s' "$${NAME:-$$base}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$$//')"; \
-	if [ -z "$$NAME" ]; then echo "ERROR: could not derive a container name from MODEL=$$MODEL (pass NAME=)" >&2; exit 1; fi; \
-	ALIAS="$${ALIAS:-$$NAME}"; \
-	IMAGE_NAME="localhost/$$NAME"; \
-	IMAGE_TAG="$${LLAMA_TAG}-rocm-$${ROCM_VERSION}"; \
-	TAGGED_IMAGE="$$IMAGE_NAME:$$IMAGE_TAG"; \
-	REPO_PATH="$$(pwd)"; \
-	HOME_DIR="$${HOME_DIR:-$${HOME:-}}"; \
-	if [ -z "$$HOME_DIR" ]; then echo "ERROR: HOME not set; pass HOME_DIR=/home/<you>" >&2; exit 1; fi; \
-	DOC_URL="$${DOC_URL:-https://github.com/nicholasburr/llamacpp-$$NAME}"; \
-	echo "==> bootstrapping project in: $$REPO_PATH"; \
-	echo "    MODEL   = $$MODEL"; \
-	echo "    NAME    = $$NAME"; \
-	echo "    ALIAS   = $$ALIAS"; \
-	echo "    IMAGE   = $$TAGGED_IMAGE"; \
-	echo "    versions from $$SH/TAGS: LLAMA_TAG=$$LLAMA_TAG ROCM_VERSION=$$ROCM_VERSION FEDORA_VERSION=$$FEDORA_VERSION"; \
-	existing=""; \
-	for f in TAGS PROJECT compose.yaml README.md "config/containers/systemd/$$NAME/$$NAME.build" "config/containers/systemd/$$NAME/$$NAME.container" Makefile Containerfile; do \
-	  if [ -e "$$f" ] || [ -L "$$f" ]; then existing="$$existing $$f"; fi; \
-	done; \
-	if [ -n "$$existing" ] && [ -z "$$FORCE" ]; then \
-	  echo "ERROR: these files already exist:$$existing" >&2; \
-	  echo "       re-run with FORCE=1 (make init ... FORCE=1) to overwrite." >&2; \
-	  exit 1; \
-	fi; \
-	render() { local tpl="$$1" out="$$2"; mkdir -p "$$(dirname "$$out")"; sed -e "s|@@CONTAINER_NAME@@|$$NAME|g" -e "s|@@MODEL@@|$$MODEL|g" -e "s|@@ALIAS@@|$$ALIAS|g" -e "s|@@IMAGE_NAME@@|$$IMAGE_NAME|g" -e "s|@@IMAGE_TAG@@|$$IMAGE_TAG|g" -e "s|@@LLAMA_TAG@@|$$LLAMA_TAG|g" -e "s|@@ROCM_VERSION@@|$$ROCM_VERSION|g" -e "s|@@FEDORA_VERSION@@|$$FEDORA_VERSION|g" -e "s|@@HOME_DIR@@|$$HOME_DIR|g" -e "s|@@REPO_PATH@@|$$REPO_PATH|g" -e "s|@@DOC_URL@@|$$DOC_URL|g" "$$tpl" > "$$out"; echo "  wrote $$out"; }; \
-	rm -f TAGS PROJECT compose.yaml README.md; \
-	rm -f "config/containers/systemd/$$NAME/$$NAME.build" "config/containers/systemd/$$NAME/$$NAME.container"; \
-	render "$$TPL/TAGS.tpl" TAGS; \
-	render "$$TPL/PROJECT.tpl" PROJECT; \
-	render "$$TPL/compose.yaml.tpl" compose.yaml; \
-	render "$$TPL/quadlet.build.tpl" "config/containers/systemd/$$NAME/$$NAME.build"; \
-	render "$$TPL/quadlet.container.tpl" "config/containers/systemd/$$NAME/$$NAME.container"; \
-	render "$$TPL/README.md.tpl" README.md; \
-	link() { local src="$$1" dst="$$2"; if [ -L "$$dst" ]; then rm -f "$$dst"; elif [ -e "$$dst" ]; then if [ -n "$$FORCE" ]; then rm -f "$$dst"; else echo "  skip $$dst (exists and is not a symlink)"; return 0; fi; fi; ln -s "$$src" "$$dst"; echo "  linked $$dst -> $$src"; }; \
-	link "$$SH/Makefile" Makefile; \
-	link "$$SH/Containerfile" Containerfile; \
-	printf '.git\nshared\n*.tpl\n*.bak\n*.bak-*\n' > .podmanignore; \
-	echo "  wrote .podmanignore"; \
-	echo; \
-	echo "==> done. Next steps:"; \
-	echo "    git add -A && git commit -m 'bootstrap llamacpp-$$NAME'"; \
-	echo "    make deploy          # build the image + start the service"; \
-	echo "    make status          # check it came up"; \
-	echo "    (PROJECT locks MODEL=$$MODEL for this project — a new model needs a NEW project)"; \
-	echo; \
-	echo "To update llama.cpp / ROCm / Fedora later (managed by the submodule):"; \
-	echo "    git submodule update --remote shared && make sync-versions && make sync && make build && make deploy"
 
 sync-versions: ## (consumer) Pull LLAMA_TAG/ROCM_VERSION/FEDORA_VERSION from the shared submodule into TAGS.
 	@if [ -f "$(SHARED)/TAGS" ]; then \
