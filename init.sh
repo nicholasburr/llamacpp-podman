@@ -15,7 +15,7 @@
 #
 # Usage:
 #   bash shared/init.sh MODEL=<hf-repo:quant> [NAME=..] [ALIAS=..] \
-#                       [HOME_DIR=..] [DOC_URL=..] [FORCE=1]
+#                       [HOME_DIR=..] [DOC_URL=..] [--force] [-h|--help]
 
 set -euo pipefail
 
@@ -29,20 +29,38 @@ usage() {
 init.sh — bootstrap a NEW llamacpp project from this shared submodule (one-time).
 
 Run from the root of a fresh, empty project repo that has this submodule checked
-out at ./shared. Renders the templates into the project root, writes the immutable
+out at ./shared. It renders the templates into the project root, writes the immutable
 PROJECT file, symlinks the shared Makefile + Containerfile, and prints next steps.
 
 Usage:
-  bash shared/init.sh MODEL=<hf-repo:quant> [NAME=..] [ALIAS=..] [HOME_DIR=..] [DOC_URL=..] [FORCE=1]
+  bash shared/init.sh MODEL=<hf-repo:quant> [options]
 
-Arguments:
-  MODEL      (required) Hugging Face repo + quant, e.g. unsloth/Your-Model-GGUF:Q4_K_XL
-  NAME       container name (derived from MODEL if omitted)
-  ALIAS      short name for logs/status (defaults to NAME)
-  HOME_DIR   $HOME path for the quadlet units (defaults to $HOME)
-  DOC_URL    repo URL written into the generated README (defaults to a github.com URL)
-  FORCE=1    overwrite files that already exist (MODEL must still match PROJECT)
-  SHARED     (env) directory holding this submodule (default ./shared)
+Required:
+  MODEL=<hf-repo:quant>   Hugging Face repo + quant, e.g. unsloth/Your-Model-GGUF:Q4_K_XL.
+                          Written to PROJECT and IMMUTABLE for the life of the project
+                          (a project serves exactly one model).
+
+Options:
+  NAME=<name>             Container name (derived from MODEL if omitted)
+  ALIAS=<name>            Short name for logs/status (defaults to NAME)
+  HOME_DIR=<path>         $HOME path for the quadlet units (defaults to $HOME)
+  DOC_URL=<url>           Repo URL written into the generated README
+  --force                 Overwrite files that already exist (MODEL must still match PROJECT)
+  -h, --help              Show this help menu and exit
+
+Environment:
+  SHARED                  Directory holding this submodule (default ./shared)
+
+Examples:
+  bash shared/init.sh MODEL=unsloth/Your-Model-GGUF:Q4_K_XL
+  bash shared/init.sh MODEL=unsloth/Your-Model-GGUF:Q4_K_XL NAME=my-model
+  bash shared/init.sh MODEL=unsloth/Your-Model-GGUF:Q4_K_XL --force    # overwrite existing project
+
+Notes:
+  * After init, MODEL is locked to PROJECT; to serve a different model, initialize a
+    brand-new project.
+  * Versions (llama.cpp / ROCm / Fedora) come from shared/TAGS and are bumped later
+    with `git submodule update --remote shared && make sync-versions`.
 USAGE
 }
 
@@ -54,8 +72,9 @@ for a in "$@"; do
     HOME_DIR=*) HOME_DIR="${a#*=}" ;;
     DOC_URL=*)  DOC_URL="${a#*=}" ;;
     FORCE=*)    FORCE="${a#*=}" ;;
+    --force)    FORCE=1 ;;
     -h|--help)  usage; exit 0 ;;
-    *) die "unknown argument '$a' (expected MODEL=... [NAME=..] [ALIAS=..] [HOME_DIR=..] [DOC_URL=..] [FORCE=1])" ;;
+    *) die "unknown argument '$a' (expected MODEL=... [NAME=..] [ALIAS=..] [HOME_DIR=..] [DOC_URL=..] [--force])" ;;
   esac
 done
 
@@ -111,14 +130,14 @@ echo "    ALIAS   = $ALIAS"
 echo "    IMAGE   = $TAGGED_IMAGE"
 echo "    versions from $SHARED/TAGS: LLAMA_TAG=$LLAMA_TAG ROCM_VERSION=$ROCM_VERSION FEDORA_VERSION=$FEDORA_VERSION"
 
-# Refuse to clobber an existing project (re-run with FORCE=1 to overwrite).
+# Refuse to clobber an existing project (re-run with --force to overwrite).
 existing=""
 for f in TAGS PROJECT compose.yaml README.md "config/containers/systemd/$NAME/$NAME.build" "config/containers/systemd/$NAME/$NAME.container" Makefile Containerfile; do
   if [ -e "$f" ] || [ -L "$f" ]; then existing="$existing $f"; fi
 done
 if [ -n "$existing" ] && [ -z "$FORCE" ]; then
   echo "ERROR: these files already exist:$existing" >&2
-  echo "       re-run with FORCE=1 (bash shared/init.sh ... FORCE=1) to overwrite." >&2
+  echo "       re-run with --force (bash shared/init.sh ... --force) to overwrite." >&2
   exit 1
 fi
 
