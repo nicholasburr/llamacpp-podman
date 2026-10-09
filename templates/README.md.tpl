@@ -50,8 +50,8 @@ Both stay in lockstep with `TAGS` via `make sync`.
 `TAGS` is the single source of truth. The image tag is computed, never hand-typed:
 
 ```
-IMAGE_TAG = <LLAMA_TAG>-rocm-<ROCM_VERSION>      e.g. @@IMAGE_TAG@@
-IMAGE     = localhost/@@CONTAINER_NAME@@:<IMAGE_TAG>
+IMAGE_TAG = f<FEDORA_VERSION>-rocm<ROCM_VERSION>-<LLAMA_TAG>      e.g. @@IMAGE_TAG@@
+IMAGE     = localhost/llamacpp:<IMAGE_TAG>
 ```
 
 ## Versions are managed by the shared submodule

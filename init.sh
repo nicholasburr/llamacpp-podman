@@ -96,8 +96,8 @@ NAME=$(printf '%s' "${NAME:-$base}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a
 [ -n "$NAME" ] || die "could not derive a container name from MODEL=$MODEL (pass NAME=)"
 
 ALIAS="${ALIAS:-$NAME}"
-IMAGE_NAME="localhost/$NAME"
-IMAGE_TAG="${LLAMA_TAG}-rocm-${ROCM_VERSION}"
+IMAGE_NAME="localhost/llamacpp"
+IMAGE_TAG="f${FEDORA_VERSION}-rocm${ROCM_VERSION}-${LLAMA_TAG}"
 TAGGED_IMAGE="$IMAGE_NAME:$IMAGE_TAG"
 REPO_PATH="$(pwd)"
 HOME_DIR="${HOME_DIR:-${HOME:-}}"

@@ -5,7 +5,7 @@ After=network-online.target
 
 [Container]
 ContainerName=@@CONTAINER_NAME@@
-Image=localhost/@@CONTAINER_NAME@@:@@IMAGE_TAG@@
+Image=localhost/llamacpp:@@IMAGE_TAG@@
 PublishPort=8000:8000
 AddDevice=/dev/dri
 AddDevice=/dev/kfd

@@ -16,7 +16,7 @@ secrets:
 
 services:
   @@CONTAINER_NAME@@:
-    image: ${IMAGE:-localhost/@@CONTAINER_NAME@@:@@IMAGE_TAG@@}
+    image: ${IMAGE:-localhost/llamacpp:@@IMAGE_TAG@@}
     container_name: ${CONTAINER_NAME:-@@CONTAINER_NAME@@}
     # Custom code to enable ipc: host in podman-compose. See the family notes.
     ipc: host

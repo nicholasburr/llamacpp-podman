@@ -23,8 +23,9 @@ repo as a submodule and let `init.sh` generate their own model-specific files.
 Add it as a git submodule to a new per-model project, and `init.sh` templates the
 model-specific files in place. A project serves exactly **one** model — that model
 is written to a `PROJECT` file at `init.sh` and is **immutable** for the life of the
-project (the container name, image name and alias are all derived from it). To serve
-a different model, initialize a brand-new project. All version bumps (llama.cpp /
+project (the container/service name and alias are derived from it; the image is a
+shared, generic `llamacpp` image whose model is applied at runtime). To serve a
+different model, initialize a brand-new project. All version bumps (llama.cpp /
 ROCm / Fedora) are managed here, in the submodule.
 
 ```sh
@@ -67,8 +68,8 @@ The Makefile is the single interface and works identically in this repo and in
 every consumer. The image tag is **computed, never hand-typed**: `TAGS` (repo root)
 is the single source of truth and the Makefile derives:
 
-    IMAGE_TAG = <LLAMA_TAG>-rocm-<ROCM_VERSION>   e.g. v0.6.0-rocm-10.1.0
-    IMAGE     = <IMAGE_NAME>:<IMAGE_TAG>          e.g. localhost/my-model:v0.6.0-rocm-10.1.0
+    IMAGE_TAG = f<FEDORA_VERSION>-rocm<ROCM_VERSION>-<LLAMA_TAG>   e.g. f44-rocm10.1.0-v0.6.0
+    IMAGE     = <IMAGE_NAME>:<IMAGE_TAG>          e.g. localhost/llamacpp:f44-rocm10.1.0-v0.6.0
 
 Run `make help` for the full, current list. In short:
 

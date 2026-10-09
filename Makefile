@@ -41,7 +41,7 @@ SHARED ?= shared
 # ---------------------------------------------------------------------------
 #  TAGS is the single source of truth for the image contents (per repo):
 #
-#      IMAGE_TAG = <LLAMA_TAG>-rocm-<ROCM_VERSION>     e.g. v0.6.0-rocm-10.1.0
+#      IMAGE_TAG = f<FEDORA_VERSION>-rocm<ROCM_VERSION>-<LLAMA_TAG>     e.g. f44-rocm10.1.0-v0.6.0
 #
 #  Read KEY=VALUE from TAGS.
 # ---------------------------------------------------------------------------
@@ -59,12 +59,14 @@ FEDORA_VERSION := $(call tagvar,FEDORA_VERSION,$(TAGS))
 # (Absent in the shared repo itself, which runs no model.)
 MODEL          := $(call tagvar,MODEL,$(PROJECT))
 
-IMAGE_TAG    := $(LLAMA_TAG)-rocm-$(ROCM_VERSION)
+IMAGE_TAG    := f$(FEDORA_VERSION)-rocm$(ROCM_VERSION)-$(LLAMA_TAG)
 TAGGED_IMAGE := $(IMAGE_NAME):$(IMAGE_TAG)
 
-# Container name defaults to the image name's basename (e.g. my-model for
-# localhost/my-model); override with: make deploy CONTAINER_NAME=<name>
-CONTAINER_NAME ?= $(notdir $(IMAGE_NAME))
+# Container/service name comes from PROJECT (set once by init.sh). The image is
+# a shared, GENERIC image (localhost/llamacpp) whose model is configured at
+# runtime, so the name can no longer be derived from the image basename.
+# Fallback: image basename (this repo has no PROJECT). Override: CONTAINER_NAME=<name>.
+CONTAINER_NAME ?= $(or $(call tagvar,CONTAINER_NAME,$(PROJECT)),$(notdir $(IMAGE_NAME)))
 
 CONTAINERFILE := Containerfile
 QUADLET_SRC   := config/containers/systemd/$(CONTAINER_NAME)
@@ -124,7 +126,7 @@ status: ## Display current status of environment.
 	@echo "  MODEL          : $(MODEL)"
 	@
 	@echo "Available images:"
-	@podman image list --filter reference=$(CONTAINER_NAME) --format '  {{.Tag}} | {{.ID}} | {{.CreatedSince}}' | grep -v latest || true
+	@podman image list --filter reference=$(IMAGE_NAME) --format '  {{.Tag}} | {{.ID}} | {{.CreatedSince}}' | grep -v latest || true
 	@
 	@echo "Deployed container:"
 	@podman ps -a --filter name=^/$(CONTAINER_NAME) --format '  {{.Image}} | {{.ID}} | {{.Status}}' || true
@@ -237,7 +239,7 @@ parametric-build: ## Pin a new llama.cpp tag in TAGS: TAG=<v-or-b-tag> [ROCM=x.y
 	  sed -i "s|^LLAMA_TAG=.*|LLAMA_TAG=$(TAG)|" $(TAGS); \
 	  { test -z "$(ROCM)" || sed -i "s|^ROCM_VERSION=.*|ROCM_VERSION=$(ROCM)|" $(TAGS); }; \
 	  { test -z "$(FEDORA)" || sed -i "s|^FEDORA_VERSION=.*|FEDORA_VERSION=$(FEDORA)|" $(TAGS); }; \
-	  echo "TAGS updated -> $(IMAGE_NAME):$(TAG)-rocm-$$(awk -F= -v k=ROCM_VERSION '$$1==k{print $$2}' $(TAGS))"; \
+	  echo "TAGS updated -> $(IMAGE_NAME):f$$(awk -F= -v k=FEDORA_VERSION '$$1==k{print $$2}' $(TAGS))-rocm$$(awk -F= -v k=ROCM_VERSION '$$1==k{print $$2}' $(TAGS))-$(TAG)"; \
 	  echo "next: make build && make deploy"; }
 
 # ============================================================================

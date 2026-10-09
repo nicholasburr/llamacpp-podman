@@ -2,9 +2,9 @@
 #
 # The image tag is computed by the Makefile (never hand-typed):
 #
-#     IMAGE_TAG = <LLAMA_TAG>-rocm-<ROCM_VERSION>
+#     IMAGE_TAG = f<FEDORA_VERSION>-rocm<ROCM_VERSION>-<LLAMA_TAG>
 #
-# e.g. v0.6.0-rocm-10.1.0
+# e.g. f44-rocm10.1.0-v0.6.0
 #
 # LLAMA_TAG is the llama.cpp git tag the image is built from — by default
 # an official release tag (vX.Y.Z, from github.com/ggml-org/llama.cpp/
@@ -17,7 +17,7 @@
 #
 # `make sync` tags HEAD with the image tag so consumers can pin the
 # submodule to a tagged build. Consumer projects keep their OWN TAGS
-# (per-project IMAGE_NAME + versions); their served model lives in a
+# (the shared generic IMAGE_NAME + versions); their served model lives in a
 # separate PROJECT file. This file only describes the shared image built
 # by the Containerfile, which runs no model.
 

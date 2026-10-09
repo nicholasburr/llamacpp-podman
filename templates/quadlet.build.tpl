@@ -1,11 +1,11 @@
 [Unit]
-Description=Build @@CONTAINER_NAME@@ image for ROCm Strix Halo
+Description=Build the shared llama.cpp ROCm image (for @@CONTAINER_NAME@@)
 Documentation=@@DOC_URL@@
 After=network-online.target
 Wants=network-online.target
 
 [Build]
-ImageTag=localhost/@@CONTAINER_NAME@@:@@IMAGE_TAG@@
+ImageTag=localhost/llamacpp:@@IMAGE_TAG@@
 File=Containerfile
 SetWorkingDirectory=@@REPO_PATH@@
 ForceRM=true
