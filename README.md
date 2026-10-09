@@ -36,7 +36,8 @@ git submodule add <this-repo-url> shared
 # 3. one-time: template TAGS, compose.yaml, config/ and README for your model;
 #    init.sh also commits the generated project + submodule registration
 bash shared/init.sh MODEL=unsloth/Your-Model-GGUF:QUANT
-#    optional overrides: NAME=.. ALIAS=.. HOME_DIR=/home/you DOC_URL=..
+#    optional overrides: NAME=.. ALIAS=.. HOME_DIR=/home/you DOC_URL=.. --force
+#    (--force overwrites an existing project; -h|--help prints the full option list)
 # 4. deploy
 make deploy
 ```
@@ -61,6 +62,31 @@ make sync && make build && make deploy # rebuild + redeploy with the new image
 
 `MODEL` lives in the project's `PROJECT` file — set once at `init.sh`, never
 version-managed, and immutable (a new model means a new project).
+
+### Pinning the submodule to a specific tag (reproducible)
+
+The `git submodule update --remote` above chases the submodule's **branch tip**, so it
+moves off any tag you've pinned. To lock a consumer to a specific shared version (e.g.
+`f44-rocm10.1.0-v0.6.0`) instead, check the tag out and commit the gitlink in the parent
+repo (the parent stores the tag's **commit SHA**, not the tag name):
+
+```sh
+git -C shared fetch --tags origin                    # tags aren't fetched by default in submodules
+git -C shared checkout f44-rocm10.1.0-v0.6.0         # detached HEAD at that tag's commit
+git add shared                                        # record the gitlink in the parent repo
+git commit -m "Pin shared to f44-rocm10.1.0-v0.6.0"
+```
+
+Any clone reproduces the exact version from the recorded SHA:
+
+```sh
+git submodule update --init shared                   # checks out the recorded SHA
+git -C shared describe --tags                         # confirm which tag it is
+git submodule status shared                           # verify the checked-out SHA
+```
+
+Use `--remote` only when you intentionally want the latest shared code; use a pinned tag
+when you want a known-good, reproducible build.
 
 ## The Makefile
 
