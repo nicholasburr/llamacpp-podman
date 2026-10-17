@@ -39,7 +39,7 @@ Both stay in lockstep with `TAGS` via `make sync`.
 
 | Command | Effect |
 |---|---|
-| `make deploy` | install quadlet units and start the service (user systemd, no root) |
+| `make deploy` | install quadlet units, build the image if missing (and wait for it), then start the service (user systemd, no root) |
 | `make status` / `make logs` / `make stop` | container lifecycle |
 | `make clean` | stop the service; remove the container and the built image |
 | `make build` | build the active `TAGS` image |

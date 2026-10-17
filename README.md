@@ -103,7 +103,7 @@ Run `make help` for the full, current list. In short:
 
 | Command | Effect |
 |---|---|
-| `make deploy` | install the quadlet units and start the service (user systemd, no root) |
+| `make deploy` | install the quadlet units, build the image if missing (and wait for it), then start the service (user systemd, no root) |
 | `make status` | show the build config, local images, and the deployed container |
 | `make logs` | follow the service logs (`journalctl --user -fu <name>`) |
 | `make stop` | stop the service |

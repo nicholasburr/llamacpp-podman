@@ -102,8 +102,43 @@ ifeq ($(HAS_QUADLET),yes)
 		fi \
 	fi
 	podman quadlet install --application=$(CONTAINER_NAME) --reload-systemd --replace $(QUADLET_SRC)
-	systemctl --user start $(CONTAINER_NAME)-build.service
+	@# Build the image only when it is missing. The build unit is Type=oneshot
+	@# with RemainAfterExit=yes, so an earlier success lingers as active(exited)
+	@# — even after the image was removed (make clean / rmi) — and a plain
+	@# `systemctl start` would be a no-op; restart it explicitly in that case.
+	@if podman image inspect "$(TAGGED_IMAGE)" >/dev/null 2>&1; then \
+		echo "image $(TAGGED_IMAGE) present — skipping build"; \
+	else \
+		echo "image $(TAGGED_IMAGE) not present — building (this can take a while)..."; \
+		systemctl --user restart $(CONTAINER_NAME)-build.service; \
+		ok=0; \
+		for _ in $$(seq 1 1440); do \
+			st=$$(systemctl --user show $(CONTAINER_NAME)-build.service -p ActiveState --value 2>/dev/null); \
+			if [ "$$st" = active ]; then ok=1; break; fi; \
+			if [ "$$st" = failed ]; then break; fi; \
+			sleep 5; \
+		done; \
+		if [ "$$ok" != 1 ]; then \
+			echo "ERROR: $(CONTAINER_NAME)-build.service did not succeed — journalctl --user -u $(CONTAINER_NAME)-build.service"; \
+			exit 1; \
+		fi; \
+	fi
+	@# Start the container. The unit's Requires=/After=<name>-build.service also
+	@# order a boot-time start after the build; here the image already exists.
 	systemctl --user start $(CONTAINER_NAME).service
+	@# Wait for the service to come up. The container is active as soon as
+	@# llama-server runs; the model download continues in the background.
+	@echo "waiting for $(CONTAINER_NAME).service to come up..."; \
+	ok=0; \
+	for _ in $$(seq 1 36); do \
+		systemctl --user is-active --quiet $(CONTAINER_NAME).service && { ok=1; break; }; \
+		sleep 5; \
+	done; \
+	if [ "$$ok" != 1 ]; then \
+		echo "ERROR: $(CONTAINER_NAME).service is not active — journalctl --user -u $(CONTAINER_NAME).service"; \
+		exit 1; \
+	fi; \
+	echo "$(CONTAINER_NAME) deployed (port 8000)"
 	@# Warn if linger is not enabled (services only start at login, not at boot)
 	@if ! loginctl show-user "$$USER" -p Linger --value 2>/dev/null | grep -qx yes; then \
 		echo; \

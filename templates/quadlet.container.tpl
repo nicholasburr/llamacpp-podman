@@ -1,7 +1,12 @@
 [Unit]
 Description=@@ALIAS@@ server (ROCm @@ROCM_VERSION@@)
-Wants=@@CONTAINER_NAME@@-build.service
-After=network-online.target
+# Requires= pulls the build service in when this service is started (boot,
+# login, or manual); After= orders the container start to happen only AFTER
+# the build has FINISHED (the build unit is Type=oneshot, so "active" means
+# the image exists). Without this the container starts before the image is
+# built and fails with "image not found" (pulling from registry "localhost").
+Requires=@@CONTAINER_NAME@@-build.service
+After=network-online.target @@CONTAINER_NAME@@-build.service
 
 [Container]
 ContainerName=@@CONTAINER_NAME@@

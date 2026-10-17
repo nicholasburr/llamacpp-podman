@@ -14,7 +14,13 @@ BuildArg=ROCM_VERSION=@@ROCM_VERSION@@
 BuildArg=TAG=@@LLAMA_TAG@@
 
 [Service]
-Type=simple
+# Type=oneshot: the unit only reaches "active" AFTER `podman build` FINISHES.
+# With Type=simple it would be active as soon as the build starts, and the
+# container unit — ordered after this one — would race the build and fail
+# with "image not found". RemainAfterExit=yes keeps a success sticky so
+# container restarts do not re-trigger a (cached) build; `make deploy`
+# re-runs this unit explicitly when the image is missing (e.g. after clean).
+Type=oneshot
 RemainAfterExit=yes
 
 [Install]
