@@ -3,7 +3,7 @@
 # init.sh — bootstrap a NEW llamacpp project from this shared submodule.
 #
 # Run this ONCE from the root of a fresh, empty project repo that has this
-# submodule checked out at ./shared. It renders the templates/ files into the
+# submodule checked out at ./podman. It renders the templates/ files into the
 # project root, writes the immutable PROJECT file, symlinks the shared Makefile
 # + Containerfile, and prints next steps.
 #
@@ -14,13 +14,13 @@
 # the submodule via `make sync-versions`.
 #
 # Usage:
-#   bash shared/init.sh MODEL=<hf-repo:quant> [NAME=..] [ALIAS=..] \
+#   bash podman/init.sh MODEL=<hf-repo:quant> [NAME=..] [ALIAS=..] \
 #                       [HOME_DIR=..] [DOC_URL=..] [--force] [-h|--help]
 
 set -euo pipefail
 
 MODEL="" NAME="" ALIAS="" HOME_DIR="" DOC_URL="" FORCE=""
-SHARED="${SHARED:-shared}"
+SHARED="${SHARED:-podman}"
 
 die() { echo "ERROR: $*" >&2; exit 2; }
 
@@ -29,11 +29,11 @@ usage() {
 init.sh — bootstrap a NEW llamacpp project from this shared submodule (one-time).
 
 Run from the root of a fresh, empty project repo that has this submodule checked
-out at ./shared. It renders the templates into the project root, writes the immutable
+out at ./podman. It renders the templates into the project root, writes the immutable
 PROJECT file, symlinks the shared Makefile + Containerfile, and prints next steps.
 
 Usage:
-  bash shared/init.sh MODEL=<hf-repo:quant> [options]
+  bash podman/init.sh MODEL=<hf-repo:quant> [options]
 
 Required:
   MODEL=<hf-repo:quant>   Hugging Face repo + quant, e.g. unsloth/Your-Model-GGUF:Q4_K_XL.
@@ -49,18 +49,18 @@ Options:
   -h, --help              Show this help menu and exit
 
 Environment:
-  SHARED                  Directory holding this submodule (default ./shared)
+  SHARED                  Directory holding this submodule (default ./podman)
 
 Examples:
-  bash shared/init.sh MODEL=unsloth/Your-Model-GGUF:Q4_K_XL
-  bash shared/init.sh MODEL=unsloth/Your-Model-GGUF:Q4_K_XL NAME=my-model
-  bash shared/init.sh MODEL=unsloth/Your-Model-GGUF:Q4_K_XL --force    # overwrite existing project
+  bash podman/init.sh MODEL=unsloth/Your-Model-GGUF:Q4_K_XL
+  bash podman/init.sh MODEL=unsloth/Your-Model-GGUF:Q4_K_XL NAME=my-model
+  bash podman/init.sh MODEL=unsloth/Your-Model-GGUF:Q4_K_XL --force    # overwrite existing project
 
 Notes:
   * After init, MODEL is locked to PROJECT; to serve a different model, initialize a
     brand-new project.
-  * Versions (llama.cpp / ROCm / Fedora) come from shared/TAGS and are bumped later
-    with `git submodule update --remote shared && make sync-versions`.
+  * Versions (llama.cpp / ROCm / Fedora) come from podman/TAGS and are bumped later
+    with `git submodule update --remote podman && make sync-versions`.
 USAGE
 }
 
@@ -80,7 +80,7 @@ done
 
 TPL="$SHARED/templates"
 
-[ -n "$MODEL" ] || die "MODEL required, e.g. bash shared/init.sh MODEL=unsloth/Your-Model-GGUF:Q4_K_XL"
+[ -n "$MODEL" ] || die "MODEL required, e.g. bash podman/init.sh MODEL=unsloth/Your-Model-GGUF:Q4_K_XL"
 
 # Immutability guard: a project serves exactly one model (see PROJECT).
 if [ -f "PROJECT" ]; then
@@ -137,7 +137,7 @@ for f in TAGS PROJECT compose.yaml README.md "config/containers/systemd/$NAME/$N
 done
 if [ -n "$existing" ] && [ -z "$FORCE" ]; then
   echo "ERROR: these files already exist:$existing" >&2
-  echo "       re-run with --force (bash shared/init.sh ... --force) to overwrite." >&2
+  echo "       re-run with --force (bash podman/init.sh ... --force) to overwrite." >&2
   exit 1
 fi
 
@@ -182,7 +182,7 @@ link() {
 link "$SHARED/Makefile" Makefile
 link "$SHARED/Containerfile" Containerfile
 
-printf '.git\nshared\n*.tpl\n*.bak\n*.bak-*\n' > .podmanignore
+printf '.git\npodman\n*.tpl\n*.bak\n*.bak-*\n' > .podmanignore
 echo "  wrote .podmanignore"
 
 # Commit the generated project. The project is expected to already be `git init`-ed
@@ -208,4 +208,4 @@ echo "    make status          # check it came up"
 echo "    (PROJECT locks MODEL=$MODEL for this project — a new model needs a NEW project)"
 echo
 echo "To update llama.cpp / ROCm / Fedora later (managed by the submodule):"
-echo "    git submodule update --remote shared && make sync-versions && make sync && make build && make deploy"
+echo "    git submodule update --remote podman && make sync-versions && make sync && make build && make deploy"

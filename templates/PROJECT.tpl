@@ -7,7 +7,7 @@
 # quadlet units; the image is a shared, GENERIC image (localhost/llamacpp) whose
 # model is configured at runtime, so it is NOT derived from the model. No make
 # target ever rewrites this file — to serve a different model, initialize a
-# brand-new project (git init + git submodule add + bash shared/init.sh).
+# brand-new project (git init + git submodule add + bash podman/init.sh).
 #
 # Version keys (LLAMA_TAG / ROCM_VERSION / FEDORA_VERSION) live in TAGS and are
 # managed by the shared submodule via `make sync-versions`.

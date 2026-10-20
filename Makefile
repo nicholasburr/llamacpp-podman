@@ -34,9 +34,9 @@ SHELL := /bin/bash
 MAKEFLAGS += --no-builtin-rules
 .DEFAULT_GOAL := help
 
-# The shared submodule lives at ./shared in consumer projects (it is this repo
+# The shared submodule lives at ./podman in consumer projects (it is this repo
 # when run from the submodule itself). Used by `sync-versions` (and `init.sh`).
-SHARED ?= shared
+SHARED ?= podman
 
 # ---------------------------------------------------------------------------
 #  TAGS is the single source of truth for the image contents (per repo):
@@ -284,7 +284,7 @@ parametric-build: ## Pin a new llama.cpp tag in TAGS: TAG=<v-or-b-tag> [ROCM=x.y
 #  FEDORA_VERSION) from the shared submodule's TAGS into this repo's TAGS.
 #
 #  Bootstrapping a NEW project is a one-time step done by the init.sh script
-#  (not a make target): `bash shared/init.sh MODEL=<hf-repo:quant>`. It renders
+#  (not a make target): `bash podman/init.sh MODEL=<hf-repo:quant>`. It renders
 #  the templates into the project root, writes the immutable PROJECT file
 #  (MODEL is set once and never changed), symlinks the Makefile + Containerfile,
 #  and prints next steps. See the README section "Using this repo as a submodule".
