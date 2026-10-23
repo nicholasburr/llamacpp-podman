@@ -2,10 +2,11 @@
 #
 # init.sh — bootstrap a NEW llamacpp project from this shared submodule.
 #
-# Run this ONCE from the root of a fresh, empty project repo that has this
-# submodule checked out at ./llamacpp-podman. It renders the templates/ files into the
+# Run this ONCE for a project repo that has this submodule checked out as a
+# direct child (normally ./llamacpp-podman). It renders templates into the
 # project root, writes the immutable PROJECT file, symlinks the shared Makefile
-# + Containerfile, and prints next steps.
+# + Containerfile, and prints next steps. The script can be run from either the
+# project root or its parent directory.
 #
 # MODEL is a one-time input: it is written to the PROJECT file and is immutable
 # for the life of the project (a project serves exactly one model). Re-running
@@ -20,7 +21,8 @@
 set -euo pipefail
 
 MODEL="" NAME="" ALIAS="" HOME_DIR="" DOC_URL="" FORCE=""
-SHARED="${SHARED:-llamacpp-podman}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+SHARED="${SHARED:-$SCRIPT_DIR}"
 
 die() { echo "ERROR: $*" >&2; exit 2; }
 
@@ -28,9 +30,11 @@ usage() {
   cat <<'USAGE'
 init.sh — bootstrap a NEW llamacpp project from this shared submodule (one-time).
 
-Run from the root of a fresh, empty project repo that has this submodule checked
-out at ./llamacpp-podman. It renders the templates into the project root, writes the immutable
-PROJECT file, symlinks the shared Makefile + Containerfile, and prints next steps.
+Run for a project repo that has this submodule checked out as a direct child
+(normally ./llamacpp-podman). The script finds that project root from the
+submodule path, even when invoked from the parent directory. It renders the
+templates into the project root, writes the immutable PROJECT file, symlinks
+the shared Makefile + Containerfile, and prints next steps.
 
 Usage:
   bash llamacpp-podman/init.sh MODEL=<hf-repo:quant> [options]
@@ -49,7 +53,7 @@ Options:
   -h, --help              Show this help menu and exit
 
 Environment:
-  SHARED                  Directory holding this submodule (default ./llamacpp-podman)
+  SHARED                  Directory holding this submodule (default: this script's directory)
 
 Examples:
   bash llamacpp-podman/init.sh MODEL=unsloth/Your-Model-GGUF:Q4_K_XL
@@ -81,6 +85,14 @@ for a in "$@"; do
   esac
 done
 
+if [[ "$SHARED" != /* ]]; then
+  SHARED="$PWD/$SHARED"
+fi
+[ -f "$SHARED/TAGS" ] || die "$SHARED/TAGS not found — check out the shared submodule first: git submodule update --init"
+SHARED="$(cd -- "$SHARED" && pwd -P)"
+REPO_PATH="$(dirname -- "$SHARED")"
+cd "$REPO_PATH"
+
 TPL="$SHARED/templates"
 
 [ -n "$MODEL" ] || die "MODEL required, e.g. bash llamacpp-podman/init.sh MODEL=unsloth/Your-Model-GGUF:Q4_K_XL"
@@ -96,7 +108,6 @@ if [ -f "PROJECT" ]; then
   fi
 fi
 
-[ -f "$SHARED/TAGS" ] || die "$SHARED/TAGS not found — check out the shared submodule first: git submodule update --init"
 [ -d "$TPL" ]         || die "$TPL not found — is this the llamacpp-podman submodule?"
 
 tagvar() { awk -F= -v k="$1" '$1==k{print $2; exit}' "$SHARED/TAGS" 2>/dev/null; }
@@ -124,7 +135,6 @@ SERVICE_NAME="llamacpp-$NAME"
 IMAGE_NAME="localhost/llamacpp"
 IMAGE_TAG="f${FEDORA_VERSION}-rocm${ROCM_VERSION}-${LLAMA_TAG}"
 TAGGED_IMAGE="$IMAGE_NAME:$IMAGE_TAG"
-REPO_PATH="$(pwd)"
 HOME_DIR="${HOME_DIR:-${HOME:-}}"
 [ -n "$HOME_DIR" ] || die "HOME not set; pass HOME_DIR=/home/<you>"
 DOC_URL="${DOC_URL:-https://github.com/nicholasburr/llamacpp-$NAME}"
@@ -190,7 +200,7 @@ link() {
 link "$SHARED/Makefile" Makefile
 link "$SHARED/Containerfile" Containerfile
 
-printf '.git\npodman\n*.tpl\n*.bak\n*.bak-*\n' > .podmanignore
+printf '.git\n%s\n*.tpl\n*.bak\n*.bak-*\n' "$(basename -- "$SHARED")" > .podmanignore
 echo "  wrote .podmanignore"
 
 # Commit the generated project. The project is expected to already be `git init`-ed

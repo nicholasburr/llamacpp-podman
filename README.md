@@ -28,6 +28,23 @@ shared, generic `llamacpp` image whose model is applied at runtime). To serve a
 different model, initialize a brand-new project. All version bumps (llama.cpp /
 ROCm / Fedora) are managed here, in the submodule.
 
+The project folder can be one model directory inside a larger models directory,
+with this repository nested inside that model folder. For example:
+
+```text
+llamacpp-models/
+├── deepseek-v4-flash-0731/
+├── granite-4.2-30b-q4_k_m/
+└── qwen3.8-27b-ud-q4_k_xl/
+    └── llamacpp-podman/    # this shared repository
+```
+
+In this layout, the generated project files go in
+`qwen3.8-27b-ud-q4_k_xl/`, alongside `llamacpp-podman/`. Run `make` from that
+model folder. `init.sh` can be invoked there or from `llamacpp-models/`; it
+resolves the project root from the submodule's location. `MODEL` remains a
+Hugging Face repo ID and quant, not a local directory name.
+
 ```sh
 # 1. new project
 mkdir my-model && cd my-model && git init
@@ -35,10 +52,20 @@ mkdir my-model && cd my-model && git init
 git submodule add <this-repo-url> llamacpp-podman
 # 3. one-time: template TAGS, compose.yaml, config/ and README for your model;
 #    init.sh also commits the generated project + submodule registration
+#    Invoke from the project root, or by path from the parent directory:
 bash llamacpp-podman/init.sh MODEL=unsloth/Your-Model-GGUF:QUANT
 #    optional overrides: NAME=.. ALIAS=.. HOME_DIR=/home/you DOC_URL=.. --force
 #    (--force overwrites an existing project; -h|--help prints the full option list)
 # 4. deploy
+make deploy
+```
+
+For the nested layout above, run the initializer from `llamacpp-models/` with
+the submodule's path, then change into that model folder before deploying:
+
+```sh
+bash qwen3.8-27b-ud-q4_k_xl/llamacpp-podman/init.sh MODEL=unsloth/Your-Model-GGUF:QUANT
+cd qwen3.8-27b-ud-q4_k_xl
 make deploy
 ```
 
