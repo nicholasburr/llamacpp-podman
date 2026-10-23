@@ -134,7 +134,7 @@ Run `make help` for the full, current list. In short:
 | `make status` | show the build config, local images, and the deployed container |
 | `make logs` | follow the service logs (`journalctl --user -fu <name>`) |
 | `make stop` | stop the service |
-| `make clean` | stop the service; remove the container and the built image |
+| `make clean` | remove the quadlet application and stop/remove the container and built image |
 
 **Maintainer targets** (this repo and consumers) — build & update the image:
 

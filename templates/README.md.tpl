@@ -49,7 +49,7 @@ journalctl --user -fu @@SERVICE_NAME@@.service
 |---|---|
 | `make deploy` | install quadlet units, build the image if missing (and wait for it), then start the service (user systemd, no root) |
 | `make status` / `make logs` / `make stop` | container lifecycle |
-| `make clean` | stop the service; remove the container and the built image |
+| `make clean` | remove the quadlet application and stop/remove the container and built image |
 | `make build` | build the active `TAGS` image |
 | `make sync` | rewrite image tag / build args / model ref in the deploy files; tag HEAD |
 | `make parametric-build TAG=<v-or-b-tag> [ROCM=x.y.z] [FEDORA=n]` | pin a new llama.cpp tag in `TAGS` |

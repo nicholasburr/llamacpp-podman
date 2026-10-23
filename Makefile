@@ -22,7 +22,7 @@
 #      make status     show container state
 #      make logs       follow container logs
 #      make stop       stop the service
-#      make clean      stop the service; remove the container and the built image
+#      make clean      remove the quadlet application, container, and built image
 #
 #  Maintainer targets (this repo and consumers):
 #      make build             build the active TAGS image
@@ -192,19 +192,13 @@ else
 	@echo "no systemd service '$(SERVICE_NAME).service' in this repo — nothing to stop"
 endif
 
-clean: ## Stop the service; remove the container and the built image.
+clean: ## Remove the quadlet application, container, and built image.
 	@echo "cleaning up $(CONTAINER_NAME) ..."
-	@if [ -n "$(HAS_SERVICE)" ]; then \
-		echo "  stopping + disabling systemd services"; \
-		systemctl --user stop $(SERVICE_NAME)-build.service $(SERVICE_NAME).service 2>/dev/null || true; \
-		systemctl --user disable $(SERVICE_NAME)-build.service $(SERVICE_NAME).service 2>/dev/null || true; \
-	fi
 	@if [ -d "$$HOME/.config/containers/systemd/$(CONTAINER_NAME)" ]; then \
-		echo "  removing installed quadlet units"; \
-		rm -rf "$$HOME/.config/containers/systemd/$(CONTAINER_NAME)"; \
-		systemctl --user daemon-reload 2>/dev/null || true; \
+		echo "  removing installed quadlet application (stops services, reloads systemd)"; \
+		podman quadlet rm --recursive --force --ignore --reload-systemd $(CONTAINER_NAME); \
 	elif [ -z "$(HAS_SERVICE)" ]; then \
-		echo "  no systemd service '$(SERVICE_NAME).service' in this repo — skipping"; \
+		echo "  no quadlet application or systemd service '$(SERVICE_NAME).service' in this repo — skipping"; \
 	fi
 	@if podman ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$(CONTAINER_NAME)"; then \
 		echo "  removing container $(CONTAINER_NAME)"; \
