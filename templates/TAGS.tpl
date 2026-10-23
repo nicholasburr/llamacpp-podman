@@ -6,7 +6,7 @@
 #     IMAGE_TAG = f<FEDORA_VERSION>-rocm<ROCM_VERSION>-<LLAMA_TAG>
 #
 # LLAMA_TAG / ROCM_VERSION / FEDORA_VERSION are managed by the shared submodule
-# (`make sync-versions` pulls them from podman/TAGS). The served model lives in
+# (`make sync-versions` pulls them from llamacpp-podman/TAGS). The served model lives in
 # the PROJECT file, not here.
 
 IMAGE_NAME=localhost/llamacpp

@@ -5,7 +5,7 @@ Podman deployment of **@@MODEL@@** (served as `@@ALIAS@@`) on
 on Strix Halo (AMD Ryzen AI Max+ 395, 32GB UMA), built on Fedora @@FEDORA_VERSION@@.
 
 This project was bootstrapped from the **shared** git submodule
-(`podman/`) with `bash podman/init.sh MODEL=@@MODEL@@`. Everything model-specific
+(`llamacpp-podman/`) with `bash llamacpp-podman/init.sh MODEL=@@MODEL@@`. Everything model-specific
 (`TAGS`, `compose.yaml`, `config/containers/systemd/@@CONTAINER_NAME@@/@@SERVICE_NAME@@/*`, this
 README) is templated in place; the shared build machinery (`Makefile`,
 `Containerfile`) is symlinked from the submodule.
@@ -65,11 +65,11 @@ IMAGE     = localhost/llamacpp:<IMAGE_TAG>
 ## Versions are managed by the shared submodule
 
 `LLAMA_TAG`, `ROCM_VERSION`, and `FEDORA_VERSION` live in the **submodule's**
-`podman/TAGS` and are the source of truth. To pick up a new llama.cpp / ROCm /
+`llamacpp-podman/TAGS` and are the source of truth. To pick up a new llama.cpp / ROCm /
 Fedora version:
 
 ```sh
-git submodule update --remote podman   # move the submodule to its latest commit
+git submodule update --remote llamacpp-podman   # move the submodule to its latest commit
 make sync-versions                     # copy the three version keys into this project's TAGS
 make sync && make build && make deploy # rebuild + redeploy with the new image
 ```

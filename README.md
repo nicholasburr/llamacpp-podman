@@ -32,10 +32,10 @@ ROCm / Fedora) are managed here, in the submodule.
 # 1. new project
 mkdir my-model && cd my-model && git init
 # 2. add this repo as a submodule (it "unpacks" on checkout)
-git submodule add <this-repo-url> podman
+git submodule add <this-repo-url> llamacpp-podman
 # 3. one-time: template TAGS, compose.yaml, config/ and README for your model;
 #    init.sh also commits the generated project + submodule registration
-bash podman/init.sh MODEL=unsloth/Your-Model-GGUF:QUANT
+bash llamacpp-podman/init.sh MODEL=unsloth/Your-Model-GGUF:QUANT
 #    optional overrides: NAME=.. ALIAS=.. HOME_DIR=/home/you DOC_URL=.. --force
 #    (--force overwrites an existing project; -h|--help prints the full option list)
 # 4. deploy
@@ -47,7 +47,7 @@ make deploy
 from this repo's `TAGS`, writes `PROJECT` (the immutable model), `TAGS`
 (per-project versions), `compose.yaml`,
 `config/containers/systemd/<name>/*.{build,container}` and `README.md` into the
-project root, and symlinks `Makefile` + `Containerfile` from `podman/`. From then
+project root, and symlinks `Makefile` + `Containerfile` from `llamacpp-podman/`. From then
 on the plain `make <target>` works, since `Makefile` is now symlinked. The `PROJECT`
 file is set once and never rewritten — re-running `init.sh` with a different
 `MODEL` is refused.
@@ -55,7 +55,7 @@ file is set once and never rewritten — re-running `init.sh` with a different
 ### Updating versions later (managed by the submodule)
 
 ```sh
-git submodule update --remote podman   # move to the submodule's latest commit
+git submodule update --remote llamacpp-podman   # move to the submodule's latest commit
 make sync-versions                     # copy the three version keys into TAGS
 make sync && make build && make deploy # rebuild + redeploy with the new image
 ```
@@ -71,18 +71,18 @@ moves off any tag you've pinned. To lock a consumer to a specific shared version
 repo (the parent stores the tag's **commit SHA**, not the tag name):
 
 ```sh
-git -C podman fetch --tags origin                    # tags aren't fetched by default in submodules
-git -C podman checkout f44-rocm10.1.0-v0.6.0         # detached HEAD at that tag's commit
-git add podman                                        # record the gitlink in the parent repo
-git commit -m "Pin podman to f44-rocm10.1.0-v0.6.0"
+git -C llamacpp-podman fetch --tags origin                    # tags aren't fetched by default in submodules
+git -C llamacpp-podman checkout f44-rocm10.1.0-v0.6.0         # detached HEAD at that tag's commit
+git add llamacpp-podman                                       # record the gitlink in the parent repo
+git commit -m "Pin llamacpp-podman to f44-rocm10.1.0-v0.6.0"
 ```
 
 Any clone reproduces the exact version from the recorded SHA:
 
 ```sh
-git submodule update --init podman                   # checks out the recorded SHA
-git -C podman describe --tags                         # confirm which tag it is
-git submodule status podman                           # verify the checked-out SHA
+git submodule update --init llamacpp-podman                   # checks out the recorded SHA
+git -C llamacpp-podman describe --tags                        # confirm which tag it is
+git submodule status llamacpp-podman                          # verify the checked-out SHA
 ```
 
 Use `--remote` only when you intentionally want the latest shared code; use a pinned tag
