@@ -61,6 +61,9 @@ Notes:
     brand-new project.
   * Versions (llama.cpp / ROCm / Fedora) come from podman/TAGS and are bumped later
     with `git submodule update --remote podman && make sync-versions`.
+  * The systemd services are named llamacpp-<NAME> (and llamacpp-<NAME>-build), so
+    `systemctl --user status 'llamacpp-*'` — or just tab-completing `llamacpp-` —
+    lists every deployed model. The podman container keeps the bare <NAME>.
 USAGE
 }
 
@@ -115,6 +118,9 @@ NAME=$(printf '%s' "${NAME:-$base}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a
 [ -n "$NAME" ] || die "could not derive a container name from MODEL=$MODEL (pass NAME=)"
 
 ALIAS="${ALIAS:-$NAME}"
+# systemd service name: always prefixed with `llamacpp-` so every deployed
+# model shares one prefix (tab-complete `llamacpp-` under systemctl --user).
+SERVICE_NAME="llamacpp-$NAME"
 IMAGE_NAME="localhost/llamacpp"
 IMAGE_TAG="f${FEDORA_VERSION}-rocm${ROCM_VERSION}-${LLAMA_TAG}"
 TAGGED_IMAGE="$IMAGE_NAME:$IMAGE_TAG"
@@ -126,13 +132,14 @@ DOC_URL="${DOC_URL:-https://github.com/nicholasburr/llamacpp-$NAME}"
 echo "==> bootstrapping project in: $REPO_PATH"
 echo "    MODEL   = $MODEL"
 echo "    NAME    = $NAME"
+echo "    SERVICE = $SERVICE_NAME"
 echo "    ALIAS   = $ALIAS"
 echo "    IMAGE   = $TAGGED_IMAGE"
 echo "    versions from $SHARED/TAGS: LLAMA_TAG=$LLAMA_TAG ROCM_VERSION=$ROCM_VERSION FEDORA_VERSION=$FEDORA_VERSION"
 
 # Refuse to clobber an existing project (re-run with --force to overwrite).
 existing=""
-for f in TAGS PROJECT compose.yaml README.md "config/containers/systemd/$NAME/$NAME.build" "config/containers/systemd/$NAME/$NAME.container" Makefile Containerfile; do
+for f in TAGS PROJECT compose.yaml README.md "config/containers/systemd/$NAME/llamacpp-$NAME.build" "config/containers/systemd/$NAME/llamacpp-$NAME.container" Makefile Containerfile; do
   if [ -e "$f" ] || [ -L "$f" ]; then existing="$existing $f"; fi
 done
 if [ -n "$existing" ] && [ -z "$FORCE" ]; then
@@ -145,6 +152,7 @@ render() {
   local tpl="$1" out="$2"
   mkdir -p "$(dirname "$out")"
   sed -e "s|@@CONTAINER_NAME@@|$NAME|g" \
+      -e "s|@@SERVICE_NAME@@|$SERVICE_NAME|g" \
       -e "s|@@MODEL@@|$MODEL|g" \
       -e "s|@@ALIAS@@|$ALIAS|g" \
       -e "s|@@IMAGE_NAME@@|$IMAGE_NAME|g" \
@@ -160,12 +168,12 @@ render() {
 }
 
 rm -f TAGS PROJECT compose.yaml README.md
-rm -f "config/containers/systemd/$NAME/$NAME.build" "config/containers/systemd/$NAME/$NAME.container"
+rm -f "config/containers/systemd/$NAME/llamacpp-$NAME.build" "config/containers/systemd/$NAME/llamacpp-$NAME.container"
 render "$TPL/TAGS.tpl" TAGS
 render "$TPL/PROJECT.tpl" PROJECT
 render "$TPL/compose.yaml.tpl" compose.yaml
-render "$TPL/quadlet.build.tpl" "config/containers/systemd/$NAME/$NAME.build"
-render "$TPL/quadlet.container.tpl" "config/containers/systemd/$NAME/$NAME.container"
+render "$TPL/quadlet.build.tpl" "config/containers/systemd/$NAME/llamacpp-$NAME.build"
+render "$TPL/quadlet.container.tpl" "config/containers/systemd/$NAME/llamacpp-$NAME.container"
 render "$TPL/README.md.tpl" README.md
 
 link() {

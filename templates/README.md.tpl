@@ -6,7 +6,7 @@ on Strix Halo (AMD Ryzen AI Max+ 395, 32GB UMA), built on Fedora @@FEDORA_VERSIO
 
 This project was bootstrapped from the **shared** git submodule
 (`podman/`) with `bash podman/init.sh MODEL=@@MODEL@@`. Everything model-specific
-(`TAGS`, `compose.yaml`, `config/containers/systemd/@@CONTAINER_NAME@@/*`, this
+(`TAGS`, `compose.yaml`, `config/containers/systemd/@@CONTAINER_NAME@@/@@SERVICE_NAME@@/*`, this
 README) is templated in place; the shared build machinery (`Makefile`,
 `Containerfile`) is symlinked from the submodule.
 
@@ -24,16 +24,24 @@ make stop        # stop the service
 
 The default deployment is **quadlet** (user systemd, no root): `make deploy`
 installs the units from `config/containers/systemd/@@CONTAINER_NAME@@/` and
-starts `@@CONTAINER_NAME@@.service`. A **podman compose** deployment
+starts `@@SERVICE_NAME@@.service`. A **podman compose** deployment
 (`compose.yaml`) is an operator alternative that defines the identical
 container — run exactly one method at a time:
 
 | Method | Files | Start |
 |---|---|---|
-| quadlet (**default**) | `config/containers/systemd/@@CONTAINER_NAME@@/*.container`, `*.build` | `make deploy` |
+| quadlet (**default**) | `config/containers/systemd/@@CONTAINER_NAME@@/@@SERVICE_NAME@@.container`, `@@SERVICE_NAME@@.build` | `make deploy` |
 | podman compose | `compose.yaml` | `podman compose up -d` |
 
 Both stay in lockstep with `TAGS` via `make sync`.
+
+All systemd services are prefixed with `llamacpp-`, so deployed models are
+easy to find and tab-complete:
+
+```sh
+systemctl --user status 'llamacpp-*'        # every deployed model
+journalctl --user -fu @@SERVICE_NAME@@.service
+```
 
 ## The Makefile (single interface)
 
@@ -72,7 +80,7 @@ one-time input and never changes (a project serves exactly one model).
 ## Runtime environment
 
 The container runs `llama-server` with the runtime/feature environment
-variables defined in `compose.yaml` and the quadlet `@@CONTAINER_NAME@@.container`
+variables defined in `compose.yaml` and the quadlet `@@SERVICE_NAME@@.container`
 unit (kept in sync by `make sync`): 8 CPU threads, 262144 ctx, flash attention,
 q8_0 KV cache, `draft-mtp` speculative decoding, and the Web UI / agent / tools /
 reasoning feature flags. The model is pulled at runtime from `@@MODEL@@` via the

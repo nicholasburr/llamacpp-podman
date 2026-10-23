@@ -62,23 +62,34 @@ MODEL          := $(call tagvar,MODEL,$(PROJECT))
 IMAGE_TAG    := f$(FEDORA_VERSION)-rocm$(ROCM_VERSION)-$(LLAMA_TAG)
 TAGGED_IMAGE := $(IMAGE_NAME):$(IMAGE_TAG)
 
-# Container/service name comes from PROJECT (set once by init.sh). The image is
-# a shared, GENERIC image (localhost/llamacpp) whose model is configured at
+# Container name comes from PROJECT (set once by init.sh). The image is a
+# shared, GENERIC image (localhost/llamacpp) whose model is configured at
 # runtime, so the name can no longer be derived from the image basename.
 # Fallback: image basename (this repo has no PROJECT). Override: CONTAINER_NAME=<name>.
 CONTAINER_NAME ?= $(or $(call tagvar,CONTAINER_NAME,$(PROJECT)),$(notdir $(IMAGE_NAME)))
 
+# systemd service names are ALWAYS prefixed with `llamacpp-` so every deployed
+# model shares one prefix: `systemctl --user status 'llamacpp-*'` (or just
+# tab-complete `llamacpp-`) lists all deployed models. The podman container
+# itself keeps the bare CONTAINER_NAME.
+SERVICE_NAME := llamacpp-$(CONTAINER_NAME)
+
 CONTAINERFILE := Containerfile
+# Quadlet derives the systemd service name from the UNIT FILE basename
+# (<file>.container -> <file>.service), NOT from the directory — so the unit
+# files are named $(SERVICE_NAME).{build,container} while they still live in
+# the $(CONTAINER_NAME) directory (that dir is the `podman quadlet install
+# --application=` dir, which `make clean` removes).
 QUADLET_SRC   := config/containers/systemd/$(CONTAINER_NAME)
 DEPLOY_FILES  := compose.yaml \
-                 $(QUADLET_SRC)/$(CONTAINER_NAME).build \
-                 $(QUADLET_SRC)/$(CONTAINER_NAME).container
+                 $(QUADLET_SRC)/$(SERVICE_NAME).build \
+                 $(QUADLET_SRC)/$(SERVICE_NAME).container
 
 # Context detection: consumer repos have quadlet units + a user systemd
 # service; this repo has neither. The Makefile is shared, so deploy/logs/
 # stop are full recipes in consumers and no-ops here.
 HAS_QUADLET := $(shell test -d "$(QUADLET_SRC)" && echo yes)
-HAS_SERVICE := $(shell systemctl --user cat "$(CONTAINER_NAME).service" >/dev/null 2>&1 && echo yes)
+HAS_SERVICE := $(shell systemctl --user cat "$(SERVICE_NAME).service" >/dev/null 2>&1 && echo yes)
 
 LLAMA_REPO := https://github.com/ggml-org/llama.cpp.git
 
@@ -87,6 +98,7 @@ LLAMA_REPO := https://github.com/ggml-org/llama.cpp.git
 help: ## Print this list.
 	@echo "image:     $(TAGGED_IMAGE)"
 	@echo "container: $(CONTAINER_NAME)"
+	@echo "service:   $(SERVICE_NAME)"
 	@
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | \
 		awk '{ n=index($$0, ":"); h=index($$0, "## "); \
@@ -95,7 +107,7 @@ help: ## Print this list.
 deploy: ## Deploy the container as a systemd service.
 ifeq ($(HAS_QUADLET),yes)
 	@if podman ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$(CONTAINER_NAME)"; then \
-		if ! systemctl --user is-active --quiet $(CONTAINER_NAME).service 2>/dev/null; then \
+		if ! systemctl --user is-active --quiet $(SERVICE_NAME).service 2>/dev/null; then \
 			echo "REFUSED: a non-systemd container named '$(CONTAINER_NAME)' is present (compose or plain podman)"; \
 			echo "         stop it first — podman compose down   — then re-run make deploy"; \
 			exit 1; \
@@ -110,35 +122,35 @@ ifeq ($(HAS_QUADLET),yes)
 		echo "image $(TAGGED_IMAGE) present — skipping build"; \
 	else \
 		echo "image $(TAGGED_IMAGE) not present — building (this can take a while)..."; \
-		systemctl --user restart $(CONTAINER_NAME)-build.service; \
+		systemctl --user restart $(SERVICE_NAME)-build.service; \
 		ok=0; \
 		for _ in $$(seq 1 1440); do \
-			st=$$(systemctl --user show $(CONTAINER_NAME)-build.service -p ActiveState --value 2>/dev/null); \
+			st=$$(systemctl --user show $(SERVICE_NAME)-build.service -p ActiveState --value 2>/dev/null); \
 			if [ "$$st" = active ]; then ok=1; break; fi; \
 			if [ "$$st" = failed ]; then break; fi; \
 			sleep 5; \
 		done; \
 		if [ "$$ok" != 1 ]; then \
-			echo "ERROR: $(CONTAINER_NAME)-build.service did not succeed — journalctl --user -u $(CONTAINER_NAME)-build.service"; \
+			echo "ERROR: $(SERVICE_NAME)-build.service did not succeed — journalctl --user -u $(SERVICE_NAME)-build.service"; \
 			exit 1; \
 		fi; \
 	fi
 	@# Start the container. The unit's Requires=/After=<name>-build.service also
 	@# order a boot-time start after the build; here the image already exists.
-	systemctl --user start $(CONTAINER_NAME).service
+	systemctl --user start $(SERVICE_NAME).service
 	@# Wait for the service to come up. The container is active as soon as
 	@# llama-server runs; the model download continues in the background.
-	@echo "waiting for $(CONTAINER_NAME).service to come up..."; \
+	@echo "waiting for $(SERVICE_NAME).service to come up..."; \
 	ok=0; \
 	for _ in $$(seq 1 36); do \
-		systemctl --user is-active --quiet $(CONTAINER_NAME).service && { ok=1; break; }; \
+		systemctl --user is-active --quiet $(SERVICE_NAME).service && { ok=1; break; }; \
 		sleep 5; \
 	done; \
 	if [ "$$ok" != 1 ]; then \
-		echo "ERROR: $(CONTAINER_NAME).service is not active — journalctl --user -u $(CONTAINER_NAME).service"; \
+		echo "ERROR: $(SERVICE_NAME).service is not active — journalctl --user -u $(SERVICE_NAME).service"; \
 		exit 1; \
 	fi; \
-	echo "$(CONTAINER_NAME) deployed (port 8000)"
+	echo "$(SERVICE_NAME) deployed (port 8000)"
 	@# Warn if linger is not enabled (services only start at login, not at boot)
 	@if ! loginctl show-user "$$USER" -p Linger --value 2>/dev/null | grep -qx yes; then \
 		echo; \
@@ -168,31 +180,31 @@ status: ## Display current status of environment.
 
 logs: ## Follow systemd logs.
 ifeq ($(HAS_SERVICE),yes)
-	@journalctl --user -fu $(CONTAINER_NAME).service
+	@journalctl --user -fu $(SERVICE_NAME).service
 else
-	@echo "no systemd service '$(CONTAINER_NAME).service' in this repo — nothing to follow"
+	@echo "no systemd service '$(SERVICE_NAME).service' in this repo — nothing to follow"
 endif
 
 stop: ## Stop the service
 ifeq ($(HAS_SERVICE),yes)
-	@systemctl --user stop $(CONTAINER_NAME).service
+	@systemctl --user stop $(SERVICE_NAME).service
 else
-	@echo "no systemd service '$(CONTAINER_NAME).service' in this repo — nothing to stop"
+	@echo "no systemd service '$(SERVICE_NAME).service' in this repo — nothing to stop"
 endif
 
 clean: ## Stop the service; remove the container and the built image.
 	@echo "cleaning up $(CONTAINER_NAME) ..."
 	@if [ -n "$(HAS_SERVICE)" ]; then \
 		echo "  stopping + disabling systemd services"; \
-		systemctl --user stop $(CONTAINER_NAME)-build.service $(CONTAINER_NAME).service 2>/dev/null || true; \
-		systemctl --user disable $(CONTAINER_NAME)-build.service $(CONTAINER_NAME).service 2>/dev/null || true; \
+		systemctl --user stop $(SERVICE_NAME)-build.service $(SERVICE_NAME).service 2>/dev/null || true; \
+		systemctl --user disable $(SERVICE_NAME)-build.service $(SERVICE_NAME).service 2>/dev/null || true; \
 	fi
 	@if [ -d "$$HOME/.config/containers/systemd/$(CONTAINER_NAME)" ]; then \
 		echo "  removing installed quadlet units"; \
 		rm -rf "$$HOME/.config/containers/systemd/$(CONTAINER_NAME)"; \
 		systemctl --user daemon-reload 2>/dev/null || true; \
 	elif [ -z "$(HAS_SERVICE)" ]; then \
-		echo "  no systemd service '$(CONTAINER_NAME).service' in this repo — skipping"; \
+		echo "  no systemd service '$(SERVICE_NAME).service' in this repo — skipping"; \
 	fi
 	@if podman ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$(CONTAINER_NAME)"; then \
 		echo "  removing container $(CONTAINER_NAME)"; \
@@ -219,13 +231,13 @@ sync: ## Rewrite image tag, build args and model ref; tag HEAD with the image ta
 		for f in $$files; do \
 			sed -i -E "s|$(IMAGE_NAME):[A-Za-z0-9._-]+|$(TAGGED_IMAGE)|g" $$f; \
 		done; \
-		if [ -f "$(QUADLET_SRC)/$(CONTAINER_NAME).build" ]; then \
+		if [ -f "$(QUADLET_SRC)/$(SERVICE_NAME).build" ]; then \
 			sed -i -E \
 				-e "s|^BuildArg=FEDORA_VERSION=.*|BuildArg=FEDORA_VERSION=$(FEDORA_VERSION)|" \
 				-e "s|^BuildArg=ROCM_VERSION=.*|BuildArg=ROCM_VERSION=$(ROCM_VERSION)|" \
 				-e "s|^BuildArg=BRANCH=.*|BuildArg=TAG=$(LLAMA_TAG)|" \
 				-e "s|^BuildArg=TAG=.*|BuildArg=TAG=$(LLAMA_TAG)|" \
-				"$(QUADLET_SRC)/$(CONTAINER_NAME).build"; \
+				"$(QUADLET_SRC)/$(SERVICE_NAME).build"; \
 		fi; \
 		if [ -n "$(MODEL)" ] && [ -f compose.yaml ]; then \
 			old=$$(awk -F'"' '/LLAMA_ARG_HF_REPO/{print $$2; exit}' compose.yaml); \

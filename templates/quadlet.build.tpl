@@ -1,4 +1,7 @@
 [Unit]
+# Installed as @@SERVICE_NAME@@.build, so systemd names this service
+# @@SERVICE_NAME@@-build.service — same `llamacpp-` prefix as the container
+# unit, so `systemctl --user status 'llamacpp-*'` shows every deployed model.
 Description=Build the shared llama.cpp ROCm image (for @@CONTAINER_NAME@@)
 Documentation=@@DOC_URL@@
 After=network-online.target

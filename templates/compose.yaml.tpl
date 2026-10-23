@@ -1,4 +1,5 @@
-# Podman Compose deployment of @@CONTAINER_NAME@@ (ROCm, Strix Halo).
+# Podman Compose deployment of model @@CONTAINER_NAME@@ (compose service
+# @@SERVICE_NAME@@, ROCm, Strix Halo).
 #
 # One of the file-based deployment methods — the Makefile (`make deploy`),
 # this file, and the quadlet units all define the identical container
@@ -8,14 +9,14 @@
 #
 #   podman compose up -d              # start (recreates if changed)
 #   podman compose down               # stop & remove
-#   podman compose logs -f @@CONTAINER_NAME@@
+#   podman compose logs -f @@SERVICE_NAME@@
 
 secrets:
   huggingface-token:
     external: true
 
 services:
-  @@CONTAINER_NAME@@:
+  @@SERVICE_NAME@@:
     image: ${IMAGE:-localhost/llamacpp:@@IMAGE_TAG@@}
     container_name: ${CONTAINER_NAME:-@@CONTAINER_NAME@@}
     # Custom code to enable ipc: host in podman-compose. See the family notes.

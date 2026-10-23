@@ -5,10 +5,13 @@ Description=@@ALIAS@@ server (ROCm @@ROCM_VERSION@@)
 # the build has FINISHED (the build unit is Type=oneshot, so "active" means
 # the image exists). Without this the container starts before the image is
 # built and fails with "image not found" (pulling from registry "localhost").
-Requires=@@CONTAINER_NAME@@-build.service
-After=network-online.target @@CONTAINER_NAME@@-build.service
+Requires=@@SERVICE_NAME@@-build.service
+After=network-online.target @@SERVICE_NAME@@-build.service
 
 [Container]
+# The unit file (and hence the systemd service) is named @@SERVICE_NAME@@ so
+# every deployed model shares the `llamacpp-` prefix; the podman container
+# itself keeps the bare name:
 ContainerName=@@CONTAINER_NAME@@
 Image=localhost/llamacpp:@@IMAGE_TAG@@
 PublishPort=8000:8000
